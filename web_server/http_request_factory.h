@@ -18,6 +18,8 @@
 #include "Poco/Util/Option.h"
 #include "Poco/Util/OptionSet.h"
 #include "Poco/Util/HelpFormatter.h"
+#include "Poco/URI.h"
+#include "Poco/Net/HTTPRequest.h"
 #include <iostream>
 
 using Poco::Net::ServerSocket;
@@ -38,28 +40,29 @@ using Poco::Util::OptionSet;
 using Poco::Util::OptionCallback;
 using Poco::Util::HelpFormatter;
 
-#include "handlers/author_handler.h"
+#include "handlers/person_handler.h"
 
 
-static bool startsWith(const std::string& str, const std::string& prefix)
-{
+static bool startsWith(const std::string& str, const std::string& prefix) {
     return str.size() >= prefix.size() && 0 == str.compare(0, prefix.size(), prefix);
 }
 
+static bool checkShouldHandle(const std::string& uri, const std::string& handler_name) {
+    return startsWith(uri, handler_name) && (uri == handler_name || uri[handler_name.length()] == '?');
+}
 
-class HTTPRequestFactory: public HTTPRequestHandlerFactory
-{
+class HTTPRequestFactory: public HTTPRequestHandlerFactory {
 public:
     HTTPRequestFactory(const std::string& format):
-        _format(format)
-    {
+        _format(format) {
     }
 
     HTTPRequestHandler* createRequestHandler(
-        const HTTPServerRequest& request)
-    {
-        static std::string author="/author"; 
-        if (startsWith(request.getURI(),author)) return new AuthorHandler(_format);
+        const HTTPServerRequest& request) {
+        static std::string author="/person"; 
+        if (checkShouldHandle(request.getURI(), author)) {
+	    return new PersonHandler(_format);
+	}
         return 0;
     }
 
