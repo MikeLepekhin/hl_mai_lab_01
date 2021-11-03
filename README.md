@@ -1,4 +1,6 @@
-# hl_event_server
+# Homework 1. hl_event_server
+
+To create a database, use init_db.sh. 
 
 ## install C++
 sudo apt-get install gcc g++ cmake git libssl-dev zlib1g-dev librdkafka-dev mysql-server mysql-client libmysqlclient-dev libboost-all-dev
