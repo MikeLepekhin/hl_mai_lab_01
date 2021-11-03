@@ -22,6 +22,4 @@ sudo mysql -e '
     insert into person_db.persons values(
       "vasya", "Vasiliy", "Ivanov", 20
     );
-
-    select * from person_db.persons;
     '
