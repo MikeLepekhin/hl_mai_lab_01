@@ -39,6 +39,7 @@ using Poco::Util::ServerApplication;
 
 #include "http_request_factory.h"
 #include "../config/config.h"
+#include "../database/person.h"
 
 
 
@@ -69,47 +70,53 @@ protected:
                 .repeatable(false)
                 .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleHelp)));
         
-	options.addOption(
-            Option("host", "h", "set ip address for dtabase")
-                .required(false)
-                .repeatable(false)
-                .argument("value")
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleHost)));
-        
-	options.addOption(
-            Option("port", "po", "set mysql port")
-                .required(false)
-                .repeatable(false)
-                .argument("value")
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handlePort)));
-        
-	options.addOption(
-            Option("login", "lg", "set mysql login")
-                .required(false)
-                .repeatable(false)
-                .argument("value")
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleLogin)));
-        
-	options.addOption(
-            Option("password", "pw", "set mysql password")
-                .required(false)
-                .repeatable(false)
-                .argument("value")
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handlePassword)));
-        
-	options.addOption(
-            Option("database", "db", "set mysql database")
-                .required(false)
-                .repeatable(false)
-                .argument("value")
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleDatabase)));
-        
-	options.addOption(
-            Option("init_db", "it", "create database tables")
-                .required(false)
-                .repeatable(false)
-                .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleInitDB)));
-        
+	    options.addOption(
+                Option("host", "h", "set ip address for dtabase")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleHost)));
+            
+	    options.addOption(
+                Option("port", "po", "set mysql port")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handlePort)));
+            
+	    options.addOption(
+                Option("login", "lg", "set mysql login")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleLogin)));
+            
+	    options.addOption(
+                Option("password", "pw", "set mysql password")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handlePassword)));
+            
+	    options.addOption(
+                Option("database", "db", "set mysql database")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleDatabase)));
+            
+	    options.addOption(
+                Option("init_db", "it", "create database tables")
+                    .required(false)
+                    .repeatable(false)
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleInitDB)));
+
+        options.addOption(
+                Option("cache_servers", "cs", "set ignite cache servers")
+                    .required(false)
+                    .repeatable(false)
+                    .argument("value")
+                    .callback(OptionCallback<HTTPWebServer>(this, &HTTPWebServer::handleCacheServers)));
     }
 
     void handleInitDB([[maybe_unused]] const std::string &name, [[maybe_unused]] const std::string &value) {
@@ -141,6 +148,11 @@ protected:
         Config::get().host() = value;
     }
 
+    void handleCacheServers([[maybe_unused]] const std::string &name, [[maybe_unused]] const std::string &value) {
+        std::cout << "cache servers:" << value << std::endl;
+        Config::get().cache_servers() = value;
+    }
+
     void handleHelp([[maybe_unused]] const std::string &name, [[maybe_unused]] const std::string &value) {
         HelpFormatter helpFormatter(options());
         helpFormatter.setCommand(commandName());
@@ -160,15 +172,15 @@ protected:
             std::string format(
                 config().getString("HTTPWebServer.format",
                                    DateTimeFormat::SORTABLE_FORMAT));
+
+            database::Person::warm_up_cache();
             
             ServerSocket svs(Poco::Net::SocketAddress("0.0.0.0", port));
             HTTPServer srv(new HTTPRequestFactory(format), svs, new HTTPServerParams);
             
-	    srv.start();
-
+	        srv.start();
             waitForTerminationRequest();
-            
-	    srv.stop();
+	        srv.stop();
         }
         return Application::EXIT_OK;
     }

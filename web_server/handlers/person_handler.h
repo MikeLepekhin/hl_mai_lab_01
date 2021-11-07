@@ -91,13 +91,41 @@ private:
 
     void GetByLogin(HTMLForm &form, HTTPServerResponse &response) const {
         try {
-            std::optional<database::Person> result = database::Person::read_by_login(form.get("login").c_str());
-            if (result) {
-                std::ostream &ostr = response.send();
-                Poco::JSON::Stringifier::stringify(result->toJSON(), ostr);
-            } else {
-                MakeResponse404(response);
+            std::ostream &ostr = response.send();
+            std::string login = form.get("login").c_str();
+            bool no_cache = false;
+
+            if (form.has("no_cache"))
+                no_cache = true;
+
+            if (!no_cache) {
+                try {
+                    std::optional<database::Person> result = database::Person::read_from_cache_by_login(login);
+                    std::cout << "item from cache:" << login << std::endl;
+                    Poco::JSON::Stringifier::stringify(result->toJSON(), ostr);
+                    return;
+                } catch (...) {
+                    std::cout << "cache missed for login:" << login << std::endl;
+                }    
             }
+    
+            try {
+                std::optional<database::Person> result = database::Person::read_by_login(login);
+
+                if (result) {
+                    if (!no_cache)
+                        result->save_to_cache();
+
+                    Poco::JSON::Stringifier::stringify(result->toJSON(), ostr);
+                    return;
+                } else {
+                    MakeResponse404(response);
+                }
+            } catch (...) {
+                ostr << "{ \"result\": false , \"reason\": \"not gound\" }";
+                return;
+            }
+    
         } catch (std::exception& s) {
             MakeResponse500(response);
         }
@@ -155,6 +183,7 @@ private:
 
         try {
             person.save_to_mysql();
+            person.save_to_cache();
         } catch (const std::string& exc) {
             if (exc == "statement error") {
                 // Already exists
