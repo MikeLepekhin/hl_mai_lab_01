@@ -144,10 +144,10 @@ private:
         database::Person person;
         
 	try {
-            person.login = object->get("login").toString();
-            person.first_name = object->get("first_name").toString();
-            person.last_name = object->get("last_name").toString();
-            person.age = std::atoi(object->get("age").toString().c_str());
+            person.login() = object->get("login").toString();
+            person.first_name() = object->get("first_name").toString();
+            person.last_name() = object->get("last_name").toString();
+            person.age() = std::atoi(object->get("age").toString().c_str());
         } catch (...) {
             MakeResponse400(response);
             return;

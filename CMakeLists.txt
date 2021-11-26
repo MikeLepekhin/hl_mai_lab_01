@@ -11,15 +11,17 @@ find_package(ZLIB)
 find_package(Poco REQUIRED COMPONENTS Foundation Util Net XML JSON Crypto NetSSL)
 
 
+
 if(NOT ${Poco_FOUND})
     message(FATAL_ERROR "Poco C++ Libraries not found.")
 endif()
 
+include_directories(SYSTEM ${IGNITE_INCLUDE_DIR} ${JNI_INCLUDE_DIRS})
 include_directories(${Poco_INCLUDE_DIRS})
 include_directories(${GTEST_INCLUDE_DIRS})
 include_directories("/usr/include/mysql")
 include_directories("/usr/local/include/mysql")
-include_directories(${Boost_INCLUDE_DIR})
+
 link_directories("/usr/local/lib")
 
 add_executable(${EXAMPLE_BINARY} main.cpp 
@@ -37,7 +39,7 @@ target_link_libraries(${EXAMPLE_BINARY} PRIVATE
                              ${Poco_LIBRARIES}
                              "PocoData"
                              "PocoDataMySQL"
-                             "mysqlclient"
+                             "mysqlclient"                            
                              ZLIB::ZLIB)
 
 
@@ -52,4 +54,5 @@ set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 set(CPACK_PACKAGE_CONTACT Dmitriy.Dzyuba@mts.ru)
 include(CPack)
+
 

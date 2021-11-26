@@ -18,8 +18,6 @@
 #include "Poco/Util/Option.h"
 #include "Poco/Util/OptionSet.h"
 #include "Poco/Util/HelpFormatter.h"
-#include "Poco/URI.h"
-#include "Poco/Net/HTTPRequest.h"
 #include <iostream>
 
 using Poco::Net::ServerSocket;
@@ -60,9 +58,10 @@ public:
     HTTPRequestHandler* createRequestHandler(
         const HTTPServerRequest& request) {
         static std::string author="/person"; 
+
         if (checkShouldHandle(request.getURI(), author)) {
-	    return new PersonHandler(_format);
-	}
+	        return new PersonHandler(_format);
+	    }
         return 0;
     }
 

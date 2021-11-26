@@ -10,6 +10,8 @@
 
 #include <sstream>
 #include <exception>
+#include <fstream>
+
 
 using namespace Poco::Data::Keywords;
 using Poco::Data::Session;
@@ -17,14 +19,102 @@ using Poco::Data::Statement;
 
 namespace database
 {
+    void Person::init()
+    {
+        try
+        {
+
+            Poco::Data::Session session = database::Database::get().create_session();
+            //*
+            Statement drop_stmt(session);
+            drop_stmt << "DROP TABLE IF EXISTS Person", now;
+            //*/
+
+            // (re)create table
+            Statement create_stmt(session);
+            create_stmt << "CREATE TABLE IF NOT EXISTS `Person` (`login` VARCHAR(50) NOT NULL PRIMARY KEY,"
+                        << "`first_name` VARCHAR(256) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,"
+                        << "`last_name` VARCHAR(256) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,"
+                        << "`age` INT NOT NULL,"
+                        << "PRIMARY KEY (`login`),KEY `fn` (`first_name`),KEY `ln` (`last_name`));",
+                now;
+        }
+
+        catch (Poco::Data::MySQL::ConnectionException &e)
+        {
+            std::cout << "connection:" << e.what() << std::endl;
+            throw;
+        }
+        catch (Poco::Data::MySQL::StatementException &e)
+        {
+
+            std::cout << "statement:" << e.what() << std::endl;
+            throw;
+        }
+    }
+
+    
+    void Person::preload(const std::string &file)
+    {
+        try
+        {
+
+            Poco::Data::Session session = database::Database::get().create_session();
+            std::string json;
+            std::ifstream is(file);
+            std::istream_iterator<char> eos;
+            std::istream_iterator<char> iit(is);
+            while (iit != eos)
+                json.push_back(*(iit++));
+            is.close();
+
+            Poco::JSON::Parser parser;
+            Poco::Dynamic::Var result = parser.parse(json);
+            Poco::JSON::Array::Ptr arr = result.extract<Poco::JSON::Array::Ptr>();
+
+            size_t i{0};
+            for (i = 0; i < arr->size(); ++i)
+            {
+                Poco::JSON::Object::Ptr object = arr->getObject(i);
+                std::string login = object->getValue<std::string>("login");
+                std::string first_name = object->getValue<std::string>("first_name");
+                std::string last_name = object->getValue<std::string>("last_name");
+                long age = object->getValue<long>("age");
+
+                Poco::Data::Statement insert(session);
+                insert << "INSERT INTO Person (login, first_name,last_name,age) VALUES(?, ?, ?, ?)",
+                    Poco::Data::Keywords::use(login),                    
+                    Poco::Data::Keywords::use(first_name),
+                    Poco::Data::Keywords::use(last_name),
+                    Poco::Data::Keywords::use(age);
+
+                insert.execute();
+            }
+
+            std::cout << "Inserted " << i << " records" << std::endl;
+        }
+
+        catch (Poco::Data::MySQL::ConnectionException &e)
+        {
+            std::cout << "connection:" << e.what() << std::endl;
+            throw;
+        }
+        catch (Poco::Data::MySQL::StatementException &e)
+        {
+
+            std::cout << "statement:" << e.what() << std::endl;
+            throw;
+        }
+    }
+
 
     Poco::JSON::Object::Ptr Person::toJSON() const {
         Poco::JSON::Object::Ptr root = new Poco::JSON::Object();
 
-        root->set("login", login);
-        root->set("first_name", first_name);
-        root->set("last_name", last_name);
-        root->set("age", age);
+        root->set("login", _login);
+        root->set("first_name", _first_name);
+        root->set("last_name", _last_name);
+        root->set("age", _age);
         return root;
     }
 
@@ -34,29 +124,34 @@ namespace database
         Poco::Dynamic::Var result = parser.parse(str);
         Poco::JSON::Object::Ptr object = result.extract<Poco::JSON::Object::Ptr>();
 
-        person.login = object->getValue<std::string>("login");
-        person.first_name = object->getValue<std::string>("first_name");
-        person.last_name = object->getValue<std::string>("last_name");
-        person.age = object->getValue<int>("age");
+        person.login() = object->getValue<std::string>("login");
+        person.first_name() = object->getValue<std::string>("first_name");
+        person.last_name() = object->getValue<std::string>("last_name");
+        person.age() = object->getValue<long>("age");
         return person;
     }
 
-    void Person::init() {
+    std::optional<Person> Person::read_by_login(std::string login) {
         try {
-
             Poco::Data::Session session = database::Database::get().create_session();
-            
-	    Statement drop_stmt(session);
-            drop_stmt << "DROP TABLE IF EXISTS persons", now;
-            
-	    Statement create_stmt(session);
-            create_stmt << "CREATE TABLE IF NOT EXISTS persons ("
-                           "   login CHAR(50) NOT NULL PRIMARY KEY,"
-                           "   first_name CHAR(50) NOT NULL,"
-                           "   last_name CHAR(50) NOT NULL,"
-                           "   age INT NOT NULL"
-                           " );",
-                           now;
+            Poco::Data::Statement select(session);
+
+            Person a;
+
+            select << "SELECT login, first_name, last_name, age FROM Person WHERE login=?",
+                into(a._login),
+                into(a._first_name),
+                into(a._last_name),
+                into(a._age),
+                use(login),
+                range(0, 1);
+
+            if (!select.done()) {
+                if (!select.execute()) 
+		            return std::nullopt;
+            }
+
+            return a;
         }
 
         catch (Poco::Data::MySQL::ConnectionException &e) {
@@ -69,27 +164,25 @@ namespace database
         }
     }
 
-    std::optional<Person> Person::read_by_login(std::string login) {
+    std::vector<Person> Person::read_all() {
         try {
             Poco::Data::Session session = database::Database::get().create_session();
-            Poco::Data::Statement select(session);
-
+            Statement select(session);
+            std::vector<Person> result;
             Person a;
 
-            select << "SELECT login, first_name, last_name, age FROM persons WHERE login=?",
-                into(a.login),
-                into(a.first_name),
-                into(a.last_name),
-                into(a.age),
-                use(login),
-                range(0, 1);
+            select << "SELECT login, first_name, last_name, age FROM Person",
+                into(a._login),
+                into(a._first_name),
+                into(a._last_name),
+                into(a._age),
+                range(0, 1); //  iterate over result set one row at a time
 
-            if (!select.done()) {
-                if (!select.execute()) 
-		    return std::nullopt;
+            while (!select.done()) {
+                select.execute();
+                result.push_back(a);
             }
-
-            return a;
+            return result;
         }
 
         catch (Poco::Data::MySQL::ConnectionException &e) {
@@ -115,10 +208,10 @@ namespace database
             std::string last_name_pattern = "%" + last_name.value_or("") + "%";
             
 	    select << "SELECT login, first_name, last_name, age FROM persons WHERE first_name LIKE ? AND last_name LIKE ?",
-                into(a.login),
-                into(a.first_name),
-                into(a.last_name),
-                into(a.age),
+                into(a._login),
+                into(a._first_name),
+                into(a._last_name),
+                into(a._age),
                 use(first_name_pattern),
                 use(last_name_pattern),
                 range(0, 1);
@@ -145,10 +238,10 @@ namespace database
             Poco::Data::Statement insert(session);
 
             insert << "INSERT INTO persons (login, first_name, last_name, age) VALUES(?, ?, ?, ?)",
-                use(login),
-                use(first_name),
-                use(last_name),
-                use(age);
+                use(_login),
+                use(_first_name),
+                use(_last_name),
+                use(_age);
 
             insert.execute();
         } catch (Poco::Data::MySQL::ConnectionException &e) {
@@ -158,5 +251,37 @@ namespace database
             std::cout << "statement:" << e.what() << std::endl;
             throw std::string("statement error");
         }
+    }
+
+    const std::string& Person::get_login() const {
+        return _login;
+    }
+
+    const std::string& Person::get_first_name() const {
+        return _first_name;
+    }
+
+    const std::string& Person::get_last_name() const {
+        return _last_name;
+    }
+
+    long Person::get_age() const {
+        return _age;
+    }
+
+    std::string& Person::login() {
+        return _login;
+    }
+
+    std::string& Person::first_name() {
+        return _first_name;
+    }
+
+    std::string& Person::last_name() {
+        return _last_name;
+    }
+
+    long& Person::age() {
+        return _age;
     }
 }
